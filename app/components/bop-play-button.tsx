@@ -23,7 +23,7 @@ export default function BopPlayButton({ moments, className = "" }: { moments: La
     stop();
     const Context = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Context) return;
-    const ctx = new Context(); context.current = ctx;
+    const ctx = new Context(); context.current = ctx; void ctx.resume();
     const master = ctx.createGain(); master.gain.value = .15; master.connect(ctx.destination);
     const now = ctx.currentTime + .04;
     const has = (role: Layer["role"]) => moments.some((moment) => moment.role === role);

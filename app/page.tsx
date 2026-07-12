@@ -99,6 +99,9 @@ export default function Home() {
 
   async function createBop() {
     if (!sessionId) return;
+    // Start audio inside the click gesture. Waiting for Convex first makes browsers
+    // classify the later AudioContext as autoplay and silently suspend it.
+    play(moments);
     setIsMaking(true); setNotice("");
     try {
       const result = await makeBop({ sessionId, shareCode: opaqueCode() });
@@ -107,9 +110,7 @@ export default function Home() {
         window.setTimeout(() => setRevealStep(1), 1700);
         window.setTimeout(() => setRevealStep(2), 3400);
         window.setTimeout(() => setRevealStep(3), 5100);
-        window.setTimeout(() => { setRevealStep(4); play(moments); }, 6800);
-      } else {
-        play(moments);
+        window.setTimeout(() => setRevealStep(4), 6800);
       }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Couldn’t make the bop yet.");
@@ -230,7 +231,7 @@ function useTinySong() {
     stop();
     const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
-    const ctx = new AudioContextClass(); contextRef.current = ctx;
+    const ctx = new AudioContextClass(); contextRef.current = ctx; void ctx.resume();
     clipsRef.current = moments.flatMap((moment) => {
       if (!moment.soundUrl) return [];
       const clip = new Audio(moment.soundUrl); clip.volume = .17; void clip.play().catch(() => undefined); return [clip];
