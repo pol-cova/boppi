@@ -42,8 +42,21 @@ export default defineSchema({
     title: v.string(),
     shareCode: v.string(),
     momentIds: v.array(v.id("moments")),
+    strudelCode: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_group_day", ["groupId", "day"])
     .index("by_share", ["shareCode"]),
+
+  publicBops: defineTable({
+    creatorName: v.string(),
+    caption: v.string(),
+    vibe: v.string(),
+    photoId: v.optional(v.id("_storage")),
+    shareCode: v.string(),
+    title: v.string(),
+    strudelCode: v.string(),
+    generationStatus: v.union(v.literal("pending"), v.literal("ready"), v.literal("fallback")),
+    createdAt: v.number(),
+  }).index("by_share", ["shareCode"]).index("by_created", ["createdAt"]),
 });

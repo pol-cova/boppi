@@ -4,6 +4,7 @@ import { v } from "convex/values";
 
 const roles = ["bass", "atmosphere", "percussion", "melody"] as const;
 const colors = ["pink", "lime", "blue", "orange"] as const;
+const fallbackStrudel = (seed = 0) => `setcps(0.72)\nstack(\n  note("<c4 eb4 f4 g4>*2").s("triangle").gain(0.7),\n  note("<c2 c2 ab1 bb1>").s("sine").gain(0.55),\n  s("bd ~ [~ bd] ~").gain(0.5)\n).slow(${seed % 2 ? 2 : 1})`;
 
 const dayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
@@ -120,9 +121,36 @@ export const makeBop = mutation({
       title: titleFrom(moments.map((moment) => moment.caption)),
       shareCode,
       momentIds: moments.map((moment) => moment._id),
+      strudelCode: fallbackStrudel(moments.length),
       createdAt: Date.now(),
     });
+    await ctx.scheduler.runAfter(0, internal.ai.composeSong, { songId });
     return { songId, shareCode, isNew: true };
+  },
+});
+
+export const generatePublicUploadUrl = mutation({
+  args: { sessionId: v.string() },
+  handler: async (ctx, { sessionId }) => {
+    if (!/^[a-z0-9-]{20,64}$/.test(sessionId)) throw new Error("That tiny session was not safe enough.");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const createPublicBop = mutation({
+  args: { sessionId: v.string(), creatorName: v.string(), caption: v.string(), vibe: v.string(), shareCode: v.string(), photoId: v.optional(v.id("_storage")) },
+  handler: async (ctx, args) => {
+    if (!/^[a-z0-9-]{20,64}$/.test(args.sessionId)) throw new Error("That tiny session was not safe enough.");
+    const creatorName = args.creatorName.trim().slice(0, 24);
+    const caption = args.caption.trim().slice(0, 100);
+    const vibe = args.vibe.trim().slice(0, 40);
+    const shareCode = args.shareCode.trim().toLowerCase();
+    if (!creatorName || !caption || !vibe) throw new Error("Give your bop a name, feeling, and vibe.");
+    if (!/^[a-z0-9]{20,64}$/.test(shareCode)) throw new Error("That share link was not safe enough.");
+    if (await ctx.db.query("publicBops").withIndex("by_share", (q) => q.eq("shareCode", shareCode)).first()) throw new Error("That share link is already in use.");
+    const bopId = await ctx.db.insert("publicBops", { creatorName, caption, vibe, photoId: args.photoId, shareCode, title: "your little bop", strudelCode: fallbackStrudel(caption.length), generationStatus: "pending", createdAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.ai.composePublicBop, { bopId });
+    return { bopId, shareCode };
   },
 });
 
@@ -162,6 +190,23 @@ export const getSharedBop = query({
   },
 });
 
+export const getPublicBop = query({
+  args: { shareCode: v.string() },
+  handler: async (ctx, { shareCode }) => {
+    const bop = await ctx.db.query("publicBops").withIndex("by_share", (q) => q.eq("shareCode", shareCode)).first();
+    if (!bop) return null;
+    return { ...bop, imageUrl: bop.photoId ? await ctx.storage.getUrl(bop.photoId) : null };
+  },
+});
+
+export const listPublicBops = query({
+  args: {},
+  handler: async (ctx) => {
+    const bops = await ctx.db.query("publicBops").withIndex("by_created").order("desc").take(24);
+    return Promise.all(bops.map(async (bop) => ({ ...bop, imageUrl: bop.photoId ? await ctx.storage.getUrl(bop.photoId) : null })));
+  },
+});
+
 export const applyInterpretation = internalMutation({
   args: {
     momentId: v.id("moments"),
@@ -180,4 +225,14 @@ export const applyInterpretation = internalMutation({
       generationStatus: args.generationStatus,
     });
   },
+});
+
+export const applySongComposition = internalMutation({
+  args: { songId: v.id("songs"), title: v.string(), strudelCode: v.string() },
+  handler: async (ctx, args) => { await ctx.db.patch(args.songId, { title: args.title.slice(0, 40), strudelCode: args.strudelCode.slice(0, 1600) }); },
+});
+
+export const applyPublicComposition = internalMutation({
+  args: { bopId: v.id("publicBops"), title: v.string(), strudelCode: v.string(), generationStatus: v.union(v.literal("ready"), v.literal("fallback")) },
+  handler: async (ctx, args) => { await ctx.db.patch(args.bopId, { title: args.title.slice(0, 40), strudelCode: args.strudelCode.slice(0, 1600), generationStatus: args.generationStatus }); },
 });

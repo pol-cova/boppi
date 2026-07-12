@@ -4,9 +4,10 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import BopPlayButton from "./components/bop-play-button";
+import { fallbackStrudel, getStrudel } from "./lib/strudel";
 
 type Role = "bass" | "atmosphere" | "percussion" | "melody";
-type Moment = { _id: string; creatorName: string; caption: string; role: Role; color: string; imageUrl: string | null; soundUrl?: string | null; generationStatus?: "pending" | "ready" | "fallback" | "failed"; interpretation?: string };
+type Moment = { _id: string; creatorName: string; caption: string; role: Role; color: string; imageUrl: string | null; strudelCode?: string | null; soundUrl?: string | null; generationStatus?: "pending" | "ready" | "fallback" | "failed"; interpretation?: string };
 
 const roleDetails: Record<Role, { mark: string; line: string }> = {
   bass: { mark: "◒", line: "became the soft, steady bass." },
@@ -101,7 +102,7 @@ export default function Home() {
     if (!sessionId) return;
     // Start audio inside the click gesture. Waiting for Convex first makes browsers
     // classify the later AudioContext as autoplay and silently suspend it.
-    play(moments);
+    void play(moments, todaySong?.strudelCode);
     setIsMaking(true); setNotice("");
     try {
       const result = await makeBop({ sessionId, shareCode: opaqueCode() });
@@ -162,21 +163,21 @@ export default function Home() {
         <div className="moments-zone">
           <div className="zone-title"><div><span>01</span><h2>little things from today</h2></div><p>{moments.length === 0 ? "be the first to leave one" : `${4 - moments.length} spot${4 - moments.length === 1 ? "" : "s"} left`}</p></div>
           <div className="moment-grid">
-            {moments.map((moment, index) => <MomentCard moment={moment} index={index} me={home.me.displayName} key={moment._id} />)}
-            {moments.length < 4 && !moments.some((moment) => moment.creatorName === home.me.displayName) && <Composer caption={caption} setCaption={setCaption} preview={preview} choosePhoto={choosePhoto} postMoment={postMoment} isPosting={isPosting} />}
-            {Array.from({ length: Math.max(0, 3 - moments.length - (moments.some((m) => m.creatorName === home.me.displayName) ? 0 : 1)) }).map((_, index) => <div className="empty-card" key={index}><span>✦</span> waiting for a<br />little thing</div>)}
+            {moments.map((moment: Moment, index) => <MomentCard moment={moment} index={index} me={home.me.displayName} key={moment._id} />)}
+            {moments.length < 4 && !moments.some((moment: Moment) => moment.creatorName === home.me.displayName) && <Composer caption={caption} setCaption={setCaption} preview={preview} choosePhoto={choosePhoto} postMoment={postMoment} isPosting={isPosting} />}
+            {Array.from({ length: Math.max(0, 3 - moments.length - (moments.some((m: Moment) => m.creatorName === home.me.displayName) ? 0 : 1)) }).map((_, index) => <div className="empty-card" key={index}><span>✦</span> waiting for a<br />little thing</div>)}
           </div>
         </div>
 
         <aside className="song-zone">
           <div className="zone-title"><div><span>02</span><h2>today&apos;s bop</h2></div><p>{todaySong ? "made with your room" : "not made yet"}</p></div>
-          <div className={`bop-player ${todaySong ? "ready" : ""}`}>
+          <div className={`bop-player ${todaySong ? "ready" : ""} ${isPlaying ? "playing" : ""}`}>
             <div className="player-top"><span>{todaySong ? "MADE IN YOUR ROOM" : "THE LITTLE MIXER"}</span><span>{todaySong ? "00:18" : "00:00"}</span></div>
             <div className="vinyl"><div className="vinyl-rings" /><div className="vinyl-center">b<br />o<br />p</div></div>
             <h3>{todaySong?.title ?? "not a song yet"}</h3>
             <p>{todaySong ? `${moments.length} tiny moments, all together.` : "Two moments unlock the little mixer."}</p>
             <div className="soundline">{Array.from({ length: 29 }).map((_, i) => <i key={i} style={{ height: `${10 + ((i * 31) % 29)}px` }} />)}</div>
-            <button className="listen-button" disabled={!todaySong} onClick={() => isPlaying ? stop() : play(moments)}><span>{isPlaying ? "Ⅱ" : "▶"}</span>{isPlaying ? "pause" : "listen"}</button>
+            <button className="listen-button" disabled={!todaySong} onClick={() => isPlaying ? stop() : void play(moments, todaySong?.strudelCode)}><span>{isPlaying ? "Ⅱ" : "▶"}</span>{isPlaying ? "pause" : "listen"}</button>
           </div>
           {todaySong ? <button className="action-button dark" onClick={shareBop}>share this bop <span>↗</span></button> : <button className="action-button" disabled={moments.length < 2 || isMaking} onClick={createBop}>{isMaking ? <><i className="spinner" /> making sense of the moments</> : <>make today&apos;s bop <span>↗</span></>}</button>}
           <p className="quiet-note">{todaySong ? "This link is public. Your room stays private." : "No AI dashboard. Just a very small bit of magic."}</p>
@@ -206,8 +207,8 @@ function Composer({ caption, setCaption, preview, choosePhoto, postMoment, isPos
   return <article className="composer-card"><label className={`photo-picker ${preview ? "has-preview" : ""}`} style={preview ? { backgroundImage: `url(${preview})` } : undefined}><input type="file" accept="image/*" onChange={choosePhoto} /><span>{preview ? "change photo" : "add a photo +"}</span></label><div className="composer-copy"><p>your little thing</p><textarea value={caption} maxLength={60} onChange={(event) => setCaption(event.target.value)} placeholder="something you loved…" /><div><span>{caption.length}/60</span><button onClick={postMoment} disabled={isPosting}>{isPosting ? "adding…" : "add it ↗"}</button></div></div></article>;
 }
 
-function Archive({ songs, onBack }: { songs: Array<{ _id: string; title: string; day: string; momentIds: string[]; moments: Array<{ role: Role; soundUrl?: string | null }> }>; onBack: () => void }) {
-  return <section className="archive"><button className="back-link" onClick={onBack}>← back to today</button><p className="kicker">A RECORD OF THE ORDINARY STUFF</p><h1>small <em>archive.</em></h1><p className="archive-copy">Songs from the days you would otherwise<br />forget were this good.</p><div className="archive-list">{songs.length ? songs.map((song, index) => <article key={song._id}><span>0{index + 1}</span><div className={`archive-art art-${index % 4}`}>♫</div><div><small>{new Date(`${song.day}T12:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" })} · {song.momentIds.length} moments</small><h2>{song.title}</h2></div><BopPlayButton moments={song.moments} className="archive-play" /></article>) : <div className="archive-empty">Your first bop will live here. It&apos;ll be nice to meet it again.</div>}</div></section>;
+function Archive({ songs, onBack }: { songs: Array<{ _id: string; title: string; day: string; momentIds: string[]; strudelCode?: string | null; moments: Array<{ role: Role; soundUrl?: string | null; strudelCode?: string | null }> }>; onBack: () => void }) {
+  return <section className="archive"><button className="back-link" onClick={onBack}>← back to today</button><p className="kicker">A RECORD OF THE ORDINARY STUFF</p><h1>small <em>archive.</em></h1><p className="archive-copy">Songs from the days you would otherwise<br />forget were this good.</p><div className="archive-list">{songs.length ? songs.map((song, index) => <article key={song._id}><span>0{index + 1}</span><div className={`archive-art art-${index % 4}`}>♫</div><div><small>{new Date(`${song.day}T12:00:00`).toLocaleDateString("en", { month: "short", day: "numeric" })} · {song.momentIds.length} moments</small><h2>{song.title}</h2></div><BopPlayButton moments={song.moments} code={song.strudelCode} className="archive-play" /></article>) : <div className="archive-empty">Your first bop will live here. It&apos;ll be nice to meet it again.</div>}</div></section>;
 }
 
 function Reveal({ moments, step, close, isPlaying, stop }: { moments: Moment[]; step: number; close: () => void; isPlaying: boolean; stop: () => void }) {
@@ -217,45 +218,10 @@ function Reveal({ moments, step, close, isPlaying, stop }: { moments: Moment[]; 
 }
 
 function useTinySong() {
-  const contextRef = useRef<AudioContext | null>(null);
   const timerRef = useRef<number | null>(null);
-  const clipsRef = useRef<HTMLAudioElement[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
-  const stop = useMemo(() => () => {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    clipsRef.current.forEach((clip) => { clip.pause(); clip.src = ""; }); clipsRef.current = [];
-    if (contextRef.current) { contextRef.current.close(); contextRef.current = null; }
-    setIsPlaying(false);
-  }, []);
-  const play = useMemo(() => (moments: Moment[]) => {
-    stop();
-    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
-    const ctx = new AudioContextClass(); contextRef.current = ctx; void ctx.resume();
-    clipsRef.current = moments.flatMap((moment) => {
-      if (!moment.soundUrl) return [];
-      const clip = new Audio(moment.soundUrl); clip.volume = .28; void clip.play().catch(() => undefined); return [clip];
-    });
-    const master = ctx.createGain(); master.gain.value = 0.42;
-    const compressor = ctx.createDynamicsCompressor();
-    compressor.threshold.value = -18; compressor.knee.value = 12; compressor.ratio.value = 5; compressor.attack.value = 0.004; compressor.release.value = 0.18;
-    master.connect(compressor).connect(ctx.destination);
-    const now = ctx.currentTime + 0.05;
-    const tone = (time: number, frequency: number, length: number, type: OscillatorType, gain: number) => { const osc = ctx.createOscillator(); const amp = ctx.createGain(); osc.type = type; osc.frequency.value = frequency; amp.gain.setValueAtTime(0.0001, time); amp.gain.exponentialRampToValueAtTime(gain, time + 0.018); amp.gain.exponentialRampToValueAtTime(0.0001, time + length); osc.connect(amp).connect(master); osc.start(time); osc.stop(time + length + 0.03); };
-    const has = (role: Role) => moments.some((moment) => moment.role === role);
-    const tune = [523, 659, 784, 659, 587, 659, 523, 440];
-    const bassline = [131, 131, 147, 165, 131, 147, 110, 131];
-    for (let beat = 0; beat < 72; beat++) {
-      const time = now + beat * 0.25;
-      const phrase = Math.floor(beat / 2) % tune.length;
-      // Every bop gets a recognisable tune; each submitted role adds its own colour.
-      if (beat % 2 === 0) tone(time, tune[phrase], .34, "triangle", has("melody") ? .48 : .34);
-      if (beat % 4 === 0) tone(time, bassline[Math.floor(beat / 4) % bassline.length], .36, "sine", has("bass") ? .5 : .3);
-      if (beat % 4 === 0) tone(time, 62, .09, "sine", has("percussion") ? .42 : .24);
-      if (beat % 2 === 1) tone(time, 1568, .025, "square", has("percussion") ? .13 : .075);
-    }
-    for (const note of [262, 330, 392]) tone(now, note, 17.8, "sine", has("atmosphere") ? .055 : .028);
-    setIsPlaying(true); timerRef.current = window.setTimeout(stop, 18_200);
-  }, [stop]);
+  useEffect(() => { void getStrudel(); }, []);
+  const stop = useMemo(() => () => { if (timerRef.current) window.clearTimeout(timerRef.current); getStrudel().then((strudel) => strudel.hush()).catch(() => undefined); setIsPlaying(false); }, []);
+  const play = useMemo(() => async (moments: Moment[], code?: string | null) => { stop(); try { const strudel = await getStrudel(); await strudel.evaluate(code || moments.find((moment) => moment.strudelCode)?.strudelCode || fallbackStrudel); setIsPlaying(true); timerRef.current = window.setTimeout(() => { strudel.hush(); setIsPlaying(false); }, 18_200); } catch { setIsPlaying(false); } }, [stop]);
   return { isPlaying, play, stop };
 }
