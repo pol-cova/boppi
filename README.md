@@ -2,7 +2,6 @@
 
 [![Live demo](https://img.shields.io/badge/try_boppi-live-191919?style=flat-square&logo=vercel&logoColor=white)](https://boppi.vercel.app)
 [![Bun](https://img.shields.io/badge/built_with-Bun-f9f1e1?style=flat-square&logo=bun&logoColor=14151a)](https://bun.sh)
-[![Next.js](https://img.shields.io/badge/Next.js-14-191919?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Convex](https://img.shields.io/badge/backend-Convex-ff6b5b?style=flat-square)](https://convex.dev)
 
 ![Boppi preview](https://boppi.vercel.app/opengraph-image)
