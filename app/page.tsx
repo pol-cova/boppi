@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -38,6 +39,7 @@ export default function Home() {
   const [isPosting, setIsPosting] = useState(false);
   const [isMaking, setIsMaking] = useState(false);
   const [revealStep, setRevealStep] = useState<number | null>(null);
+  const [shouldChooseRoom, setShouldChooseRoom] = useState(false);
   const { isPlaying, play, stop } = useTinySong();
 
   const home = useQuery(api.groups.getHome, sessionId ? { sessionId } : "skip");
@@ -57,6 +59,10 @@ export default function Home() {
 
   useEffect(() => () => stop(), [stop]);
 
+  useEffect(() => {
+    if (home && !window.localStorage.getItem("boppi-room-seen")) setShouldChooseRoom(true);
+  }, [home]);
+
   const moments = home?.moments ?? [];
   const todaySong = home?.todaySong;
   const todayLabel = useMemo(() => localDay(), []);
@@ -69,6 +75,8 @@ export default function Home() {
         ? await createGroup({ name: roomName, displayName, sessionId, inviteCode: opaqueCode() })
         : await joinGroup({ inviteCode: inviteCode.trim(), displayName, sessionId });
       window.localStorage.setItem("boppi-room", result.inviteCode);
+      window.localStorage.setItem("boppi-room-seen", "true");
+      setShouldChooseRoom(false);
       window.history.replaceState({}, "", window.location.pathname);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Something tiny went sideways.");
@@ -134,6 +142,7 @@ export default function Home() {
 
   if (!sessionId || home === undefined) return <Loading />;
   if (!home) return <Onboarding mode={mode} setMode={setMode} roomName={roomName} setRoomName={setRoomName} displayName={displayName} setDisplayName={setDisplayName} inviteCode={inviteCode} setInviteCode={setInviteCode} notice={notice} submit={setUpRoom} />;
+  if (shouldChooseRoom) return <RoomChooser roomName={home.group.name} continueRoom={() => { window.localStorage.setItem("boppi-room-seen", "true"); setShouldChooseRoom(false); }} startNew={() => { const fresh = crypto.randomUUID(); window.localStorage.setItem("boppi-session", fresh); window.localStorage.removeItem("boppi-room-seen"); setSessionId(fresh); setDisplayName(""); setShouldChooseRoom(false); }} />;
 
   return <main className="boppi-shell">
     <header className="masthead">
@@ -191,6 +200,10 @@ export default function Home() {
 }
 
 function Loading() { return <main className="loading-screen"><div className="loading-orb" /><p>opening the little room…</p></main>; }
+
+function RoomChooser({ roomName, continueRoom, startNew }: { roomName: string; continueRoom: () => void; startNew: () => void }) {
+  return <main className="room-chooser"><header><div className="logo"><i />boppi</div><Link href="/create" className="shared-cta">make a public bop ↗</Link></header><section className="chooser-card"><p className="kicker">A LITTLE ROOM IS WAITING</p><div className="chooser-orb">♫</div><h1>welcome back<br /><em>{roomName}.</em></h1><p>Your room is saved in this browser. What would you like to do?</p><div className="chooser-actions"><button className="begin-button" onClick={continueRoom}>continue to the room <span>↗</span></button><Link className="chooser-link" href="/create">make a public bop <span>↗</span></Link><button className="chooser-link muted" onClick={startNew}>start a new room <span>↗</span></button></div></section></main>;
+}
 
 function Onboarding(props: { mode: "create" | "join"; setMode: (mode: "create" | "join") => void; roomName: string; setRoomName: (value: string) => void; displayName: string; setDisplayName: (value: string) => void; inviteCode: string; setInviteCode: (value: string) => void; notice: string; submit: () => void }) {
   const { mode, setMode, roomName, setRoomName, displayName, setDisplayName, inviteCode, setInviteCode, notice, submit } = props;
