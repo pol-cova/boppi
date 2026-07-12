@@ -4,7 +4,7 @@
 [![Bun](https://img.shields.io/badge/built_with-Bun-f9f1e1?style=flat-square&logo=bun&logoColor=14151a)](https://bun.sh)
 [![Convex](https://img.shields.io/badge/backend-Convex-ff6b5b?style=flat-square)](https://convex.dev)
 
-![Boppi preview](https://boppi.vercel.app/opengraph-image)
+![Boppi screenshot](public/boppi-screenshot.png)
 
 ## Little moments. One tiny song.
 
