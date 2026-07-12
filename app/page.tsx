@@ -234,14 +234,27 @@ function useTinySong() {
     const ctx = new AudioContextClass(); contextRef.current = ctx; void ctx.resume();
     clipsRef.current = moments.flatMap((moment) => {
       if (!moment.soundUrl) return [];
-      const clip = new Audio(moment.soundUrl); clip.volume = .17; void clip.play().catch(() => undefined); return [clip];
+      const clip = new Audio(moment.soundUrl); clip.volume = .28; void clip.play().catch(() => undefined); return [clip];
     });
-    const master = ctx.createGain(); master.gain.value = 0.16; master.connect(ctx.destination);
+    const master = ctx.createGain(); master.gain.value = 0.42;
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -18; compressor.knee.value = 12; compressor.ratio.value = 5; compressor.attack.value = 0.004; compressor.release.value = 0.18;
+    master.connect(compressor).connect(ctx.destination);
     const now = ctx.currentTime + 0.05;
-    const tone = (time: number, frequency: number, length: number, type: OscillatorType, gain: number) => { const osc = ctx.createOscillator(); const amp = ctx.createGain(); osc.type = type; osc.frequency.value = frequency; amp.gain.setValueAtTime(0.0001, time); amp.gain.exponentialRampToValueAtTime(gain, time + 0.02); amp.gain.exponentialRampToValueAtTime(0.0001, time + length); osc.connect(amp).connect(master); osc.start(time); osc.stop(time + length + 0.03); };
+    const tone = (time: number, frequency: number, length: number, type: OscillatorType, gain: number) => { const osc = ctx.createOscillator(); const amp = ctx.createGain(); osc.type = type; osc.frequency.value = frequency; amp.gain.setValueAtTime(0.0001, time); amp.gain.exponentialRampToValueAtTime(gain, time + 0.018); amp.gain.exponentialRampToValueAtTime(0.0001, time + length); osc.connect(amp).connect(master); osc.start(time); osc.stop(time + length + 0.03); };
     const has = (role: Role) => moments.some((moment) => moment.role === role);
-    for (let beat = 0; beat < 72; beat++) { const time = now + beat * 0.25; if (has("bass") && beat % 4 === 0) tone(time, beat % 8 === 0 ? 98 : 110, .23, "sine", .7); if (has("percussion") && beat % 2 === 0) tone(time, 120 + (beat % 3) * 40, .045, "square", .22); if (has("melody") && beat % 4 === 2) tone(time, [392, 440, 494, 523][beat % 4], .19, "triangle", .23); }
-    if (has("atmosphere")) tone(now, 196, 17.8, "sine", .08);
+    const tune = [523, 659, 784, 659, 587, 659, 523, 440];
+    const bassline = [131, 131, 147, 165, 131, 147, 110, 131];
+    for (let beat = 0; beat < 72; beat++) {
+      const time = now + beat * 0.25;
+      const phrase = Math.floor(beat / 2) % tune.length;
+      // Every bop gets a recognisable tune; each submitted role adds its own colour.
+      if (beat % 2 === 0) tone(time, tune[phrase], .34, "triangle", has("melody") ? .48 : .34);
+      if (beat % 4 === 0) tone(time, bassline[Math.floor(beat / 4) % bassline.length], .36, "sine", has("bass") ? .5 : .3);
+      if (beat % 4 === 0) tone(time, 62, .09, "sine", has("percussion") ? .42 : .24);
+      if (beat % 2 === 1) tone(time, 1568, .025, "square", has("percussion") ? .13 : .075);
+    }
+    for (const note of [262, 330, 392]) tone(now, note, 17.8, "sine", has("atmosphere") ? .055 : .028);
     setIsPlaying(true); timerRef.current = window.setTimeout(stop, 18_200);
   }, [stop]);
   return { isPlaying, play, stop };
