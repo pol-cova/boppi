@@ -144,7 +144,7 @@ export default function Home() {
     <nav className="room-nav">
       <button className={tab === "today" ? "selected" : ""} onClick={() => setTab("today")}>today&apos;s room <span>{moments.length}/4</span></button>
       <button className={tab === "archive" ? "selected" : ""} onClick={() => setTab("archive")}>small archive</button>
-      <button className="invite" onClick={copyInvite}>copy invite <span>↗</span></button>
+      <button className="invite" onClick={copyInvite}>bring a friend <span>↗</span></button>
     </nav>
 
     {tab === "archive" ? <Archive songs={home.archive} onBack={() => setTab("today")} /> : <>
