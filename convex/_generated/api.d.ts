@@ -10,6 +10,7 @@
 
 import type * as ai from "../ai.js";
 import type * as aiQueries from "../aiQueries.js";
+import type * as composer from "../composer.js";
 import type * as groups from "../groups.js";
 
 import type {
@@ -21,6 +22,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   aiQueries: typeof aiQueries;
+  composer: typeof composer;
   groups: typeof groups;
 }>;
 

@@ -1,10 +1,13 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { makeFunctionReference, type FunctionReference } from "convex/server";
 import { v } from "convex/values";
 
 const roles = ["bass", "atmosphere", "percussion", "melody"] as const;
 const colors = ["pink", "lime", "blue", "orange"] as const;
 const fallbackStrudel = (seed = 0) => `setcps(0.72)\nstack(\n  note("<c4 eb4 f4 g4>*2").s("triangle").gain(0.7),\n  note("<c2 c2 ab1 bb1>").s("sine").gain(0.55),\n  s("bd ~ [~ bd] ~").gain(0.5)\n).slow(${seed % 2 ? 2 : 1})`;
+const composeSongRef = makeFunctionReference<"action", { songId: any }, null>("composer:composeSong") as unknown as FunctionReference<"action", "internal", { songId: any }, null>;
+const composePublicBopRef = makeFunctionReference<"action", { bopId: any }, null>("composer:composePublicBop") as unknown as FunctionReference<"action", "internal", { bopId: any }, null>;
 
 const dayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
@@ -124,7 +127,7 @@ export const makeBop = mutation({
       strudelCode: fallbackStrudel(moments.length),
       createdAt: Date.now(),
     });
-    await ctx.scheduler.runAfter(0, internal.ai.composeSong, { songId });
+    await ctx.scheduler.runAfter(0, composeSongRef, { songId });
     return { songId, shareCode, isNew: true };
   },
 });
@@ -149,7 +152,7 @@ export const createPublicBop = mutation({
     if (!/^[a-z0-9]{20,64}$/.test(shareCode)) throw new Error("That share link was not safe enough.");
     if (await ctx.db.query("publicBops").withIndex("by_share", (q) => q.eq("shareCode", shareCode)).first()) throw new Error("That share link is already in use.");
     const bopId = await ctx.db.insert("publicBops", { creatorName, caption, vibe, photoId: args.photoId, shareCode, title: "your little bop", strudelCode: fallbackStrudel(caption.length), generationStatus: "pending", createdAt: Date.now() });
-    await ctx.scheduler.runAfter(0, internal.ai.composePublicBop, { bopId });
+    await ctx.scheduler.runAfter(0, composePublicBopRef, { bopId });
     return { bopId, shareCode };
   },
 });
